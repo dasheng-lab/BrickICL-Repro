@@ -28,6 +28,9 @@ baseline/bricknet/*/.git-upstream/
 /runs
 /logs
 
+# Untracked compatibility links used by the byte-identical historical GRPO source.
+/nzd-supertry/
+
 # Generated dashboards and server-local presentation data
 /baseline/repro/viewer/unified_compare.json
 /baseline/repro/viewer/fox_compare.json
