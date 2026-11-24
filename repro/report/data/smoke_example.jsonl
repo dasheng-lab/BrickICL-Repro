@@ -1,0 +1,1 @@
+{"id":"independently_authored_smoke_only","prefix":"a brick 2x4 | light bluish grey\nb brick 2x2 | red\na stud stud a hole a 0\nc brick 1x1 | red\nb stud stud a hole a 0\nd brick 2x2 | blue\na stud stud e hole a 0\n","completion":"e brick 1x1 | blue\nd stud stud a hole a 0\n","n_prefix":4,"target_parts":1,"used_in_reported_experiments":false}

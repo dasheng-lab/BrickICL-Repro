@@ -1,0 +1,12 @@
+\begin{table}[htbp]
+\centering\small
+\caption{BrickNet Full-G on the same sources under DFS and frontier orderings.}
+\begin{tabular}{@{}lrrrrr@{}}\toprule
+Test order / Training & $\Delta$ log-odds & F1 original & F1 stretched & Exact@4 original (\%) & Exact@4 stretched (\%) \\
+\midrule
+DFS / Plain & 15.04 & 0.317 & 0.297 & 23 & 18 \\
+DFS / Component-last & 14.61 & 0.327 & 0.307 & 13 & 19 \\
+Frontier / Plain & 6.54 & 0.095 & 0.073 & 1 & 0 \\
+Frontier / Component-last & 8.18 & 0.146 & 0.137 & 3 & 1 \\
+\bottomrule\end{tabular}
+\end{table}

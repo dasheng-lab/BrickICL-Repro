@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.tmp/
+tmp/
+
+# Virtual environments
+.venv/
+venv/
+
+# Render artifacts
+out/
+*.blend
+*.blend1
+*.exr
+
+# OS
+.DS_Store

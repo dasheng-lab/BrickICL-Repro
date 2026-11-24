@@ -1,0 +1,30 @@
+{
+  "post_pt": {
+    "best": {
+      "optimizer_step": 750
+    },
+    "final_dev": 0.049244428994512646,
+    "last50_train": 0.01633894097598386
+  },
+  "fullg_pt": {
+    "best": {
+      "optimizer_step": 500
+    },
+    "final_dev": 0.20662074361462146,
+    "last50_train": 0.14712096635717897
+  },
+  "direct_m": {
+    "best": {
+      "optimizer_step": 750
+    },
+    "final_dev": 0.07101525616258186,
+    "last50_train": 0.010395686571100668
+  },
+  "direct_g": {
+    "best": {
+      "optimizer_step": 750
+    },
+    "final_dev": 0.2806510772788897,
+    "last50_train": 0.17730675839353352
+  }
+}
