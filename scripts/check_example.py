@@ -1,16 +1,45 @@
-"""Check a newly authored toy assembly and optional real-tokenizer completion masking; no model inference."""
-import argparse,json
+"""Validate locally supplied completion examples and optional token boundaries."""
+import argparse
 from pathlib import Path
-ROOT=Path(__file__).resolve().parents[1]
+
+from brickicl.jsonl import read_jsonl
+
+
 def main():
- p=argparse.ArgumentParser();p.add_argument('--tokenizer',help='Optional local tokenizer directory or public model ID');args=p.parse_args()
- from bricknet import parse_sample,score_text
- row=json.loads((ROOT/'data/smoke_example.jsonl').read_text(encoding='utf-8'));text=row['prefix']+row['completion'];parsed=parse_sample(text);assert parsed.error is None and len(parsed.tree.parts)==5
- assert len(parse_sample(row['prefix']).tree.parts)==4
- n,invalid,collisions=score_text(text);assert (n,invalid,collisions)==(5,None,[])
- if args.tokenizer:
-  from transformers import AutoTokenizer
-  tok=AutoTokenizer.from_pretrained(args.tokenizer);prefix=tok.encode(row['prefix'],add_special_tokens=False);target=tok.encode(row['completion'],add_special_tokens=False)+[tok.eos_token_id];ids=prefix+target;labels=[-100]*len(prefix)+target
-  assert len(ids)==len(labels) and all(x==-100 for x in labels[:len(prefix)]) and labels[-1]==tok.eos_token_id and any(x!=-100 for x in labels)
- print('Smoke passed: 5 connected, parseable, collision-free bricks; 4-brick prefix; optional tokenizer mask checked when requested.')
-if __name__=='__main__':main()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--input", type=Path, default=Path(__file__).resolve().parents[1] / "data/smoke_example.jsonl")
+    parser.add_argument("--tokenizer", help="Optional tokenizer directory or public model ID")
+    args = parser.parse_args()
+    try:
+        records = read_jsonl(args.input)
+    except (OSError, ValueError) as error:
+        parser.error(str(error))
+
+    from bricknet import parse_sample, score_text
+
+    tokenizer = None
+    if args.tokenizer:
+        from transformers import AutoTokenizer
+        tokenizer = AutoTokenizer.from_pretrained(args.tokenizer)
+    for number, record in enumerate(records, 1):
+        prefix = record.get("prefix")
+        completion = record.get("completion") or record.get("target")
+        if not isinstance(prefix, str) or not prefix.strip() or not isinstance(completion, str) or not completion.strip():
+            parser.error(f"Example {number} needs nonempty prefix and completion (or target) strings")
+        assembly = prefix + completion
+        parsed = parse_sample(assembly)
+        if parsed.error is not None:
+            parser.error(f"Example {number} cannot be parsed: {parsed.error}")
+        _, invalid, collisions = score_text(assembly)
+        if invalid is not None or collisions:
+            parser.error(f"Example {number} has invalid connections or collisions")
+        if tokenizer is not None:
+            prefix_ids = tokenizer.encode(prefix, add_special_tokens=False)
+            completion_ids = tokenizer.encode(completion, add_special_tokens=False)
+            if tokenizer.encode(assembly, add_special_tokens=False) != prefix_ids + completion_ids:
+                parser.error(f"Example {number} changes tokens across the completion boundary")
+    print(f"Validated {len(records)} local completion examples.")
+
+
+if __name__ == "__main__":
+    main()

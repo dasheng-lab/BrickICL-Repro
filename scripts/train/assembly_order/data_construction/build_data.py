@@ -7,7 +7,7 @@ Writes three files into --out:
   stats.json    what was used, skipped and dropped
 
 Rows follow the shipped `paths_*.jsonl` (`source`, `round`, `nodes`, `path`), so upstream
-`third_party/bricknet/BrickNet/scripts/train.py pt --paths masked.jsonl` reads them as they are. Outputs derive from the gated
+`$BRICKNET_REPO/scripts/train.py pt --paths masked.jsonl` reads them as they are. Outputs derive from the gated
 dataset: keep them under runs/ (not tracked).
 
 Usage (from the repo root, in the bricknet env):

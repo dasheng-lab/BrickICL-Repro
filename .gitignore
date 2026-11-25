@@ -18,4 +18,5 @@ __pycache__/
 /scripts/train/qwen/*/schedule.jsonl
 /scripts/train/qwen/*/dev_selection.json
 data/bricknet/
-third_party/bricknet/*/.git-upstream/
+/third_party/
+/results/

@@ -22,7 +22,12 @@ export BRICKNET_DATA=${BRICKNET_DATA:-$SRC/data/bricknet}
 export RUNS=${RUNS:-$SRC/runs/grpo}
 export LOGS=${LOGS:-$SRC/logs/grpo}
 # BrickNet source is shared with the vLLM environment.
-export BRICKNET_SRC=${BRICKNET_SRC:-$SRC/third_party/bricknet/BrickNet/src}
+export BRICKNET_REPO=${BRICKNET_REPO:-$SRC/../BrickNet}
+export BRICKNET_SRC=${BRICKNET_SRC:-$BRICKNET_REPO/src}
+if [ ! -d "$BRICKNET_SRC/bricknet" ]; then
+    echo "Set BRICKNET_REPO to an external BrickNet checkout; see README.md" >&2
+    return 2 2>/dev/null || exit 2
+fi
 export PYTHONPATH=$RFT:$SRC/src:$BRICKNET_SRC${PYTHONPATH:+:$PYTHONPATH}
 export HF_HUB_OFFLINE=${HF_HUB_OFFLINE:-1}
 export PYTORCH_CUDA_ALLOC_CONF=${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}

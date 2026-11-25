@@ -1,5 +1,0 @@
-bpy>=5.1
-numpy
-platformdirs
-bricknet
-matplotlib

@@ -8,14 +8,16 @@ from statistics import mean
 
 import numpy as np
 from scipy.optimize import linear_sum_assignment
-from brickicl.eval.match import realize, same_pose
+from brickicl.jsonl import read_jsonl
 
 
 def parts_and_poses(text):
+    from brickicl.eval.match import realize
     return realize(text)
 
 
 def pose_f1(predicted, predicted_poses, target, target_poses):
+    from brickicl.eval.match import same_pose
     matrix = np.zeros((len(predicted), len(target)), dtype=np.int8)
     for i, a in enumerate(predicted):
         for j, b in enumerate(target):
@@ -37,7 +39,12 @@ def main():
     parser.add_argument("--predictions", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    rows = [json.loads(line) for line in args.predictions.read_text(encoding="utf-8").splitlines() if line]
+    try:
+        rows = read_jsonl(args.predictions)
+    except (OSError, ValueError) as error:
+        parser.error(str(error))
+    if any(not isinstance(row.get("samples"), list) or not row["samples"] for row in rows):
+        parser.error("Each prediction record needs a nonempty samples list")
     scored = []
     paired = defaultdict(dict)
     for row in rows:

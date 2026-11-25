@@ -5,6 +5,7 @@ from pathlib import Path
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, LogitsProcessor
+from brickicl.jsonl import read_jsonl
 
 
 class SuppressEOS(LogitsProcessor):
@@ -43,6 +44,13 @@ def main():
     args = parser.parse_args()
     if args.samples < 1:
         parser.error("--samples must be positive")
+    try:
+        rows = read_jsonl(args.input)
+    except (OSError, ValueError) as error:
+        parser.error(str(error))
+    for number, row in enumerate(rows, 1):
+        if not isinstance(row.get("prefix"), str) or not row["prefix"].strip():
+            parser.error(f"Input row {number} needs a nonempty prefix string")
 
     from peft import PeftModel
     tokenizer = AutoTokenizer.from_pretrained(args.model)
@@ -54,9 +62,8 @@ def main():
     model.eval()
     args.output.parent.mkdir(parents=True, exist_ok=True)
     processors = [SuppressEOS(tokenizer.eos_token_id)] if args.no_eos else []
-    with args.input.open(encoding="utf-8") as source, args.output.open("w", encoding="utf-8") as dest:
-        for number, line in enumerate(source):
-            row = json.loads(line)
+    with args.output.open("w", encoding="utf-8") as dest:
+        for number, row in enumerate(rows):
             prefix = row["prefix"]
             inputs = tokenizer(prefix, return_tensors="pt", add_special_tokens=False).to(model.device)
             prediction = []

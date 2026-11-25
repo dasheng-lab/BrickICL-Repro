@@ -17,7 +17,6 @@ authors = [
 dependencies = [
     "numpy>=1.26",
     "scipy>=1.11",
-    "matplotlib>=3.8",
     "networkx>=3",
     "torch>=2.6",
     "transformers>=4.51",
