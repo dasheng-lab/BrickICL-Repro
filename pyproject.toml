@@ -1,0 +1,32 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "brickicl"
+version = "0.1.0"
+description = "Reference-guided LEGO assembly and in-weight generation experiments"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "Sixian Shen" },
+    { name = "Zidong Ning" },
+    { name = "Shengqing Sun" },
+    { name = "Junyang Wu" },
+]
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "matplotlib>=3.8",
+    "networkx>=3",
+    "torch>=2.6",
+    "transformers>=4.51",
+    "peft>=0.15",
+    "accelerate>=1",
+]
+
+[project.urls]
+Repository = "https://github.com/dasheng-lab/BrickICL-Repro"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/brickicl"]
