@@ -23,9 +23,12 @@ def main():
         tokenizer = AutoTokenizer.from_pretrained(args.tokenizer)
     for number, record in enumerate(records, 1):
         prefix = record.get("prefix")
-        completion = record.get("completion") or record.get("target")
+        paired_target = record.get("target_short") if record.get("condition") == "original" else (
+            record.get("target_long") if record.get("condition") == "stretched" else None
+        )
+        completion = record.get("target") or record.get("completion") or paired_target
         if not isinstance(prefix, str) or not prefix.strip() or not isinstance(completion, str) or not completion.strip():
-            parser.error(f"Example {number} needs nonempty prefix and completion (or target) strings")
+            parser.error(f"Example {number} needs a nonempty prefix and a completion, target, or condition-specific paired target")
         assembly = prefix + completion
         parsed = parse_sample(assembly)
         if parsed.error is not None:

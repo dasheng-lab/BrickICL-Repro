@@ -9,9 +9,9 @@ BrickICL explores how small language models assemble LEGO structures from serial
 | `src/brickicl/` | Reusable assembly, data-construction, model, and scoring code |
 | `scripts/` | Data setup, supervised and GRPO training, and generation commands |
 | `eval/` | Pose F1, Exact@N, paired reference sensitivity, and valid-prefix scoring |
-| `data/` | An empty JSONL placeholder; authorized datasets are prepared locally |
+| `data/` | A tiny paired completion test set: four works, eight input records |
 
-This repository contains the project code for data preparation, training, generation, and evaluation. Dataset contents, model checkpoints, saved predictions, metrics, tables, and plots are not included. BrickNet is installed separately from its upstream repository. Run commands from this repository's root; generated files belong in the ignored `runs/` and `logs/` directories.
+This repository contains the project code for data preparation, training, generation, and evaluation, together with a tiny test set. Full datasets, model checkpoints, saved predictions, metrics, tables, and plots are not included. BrickNet is installed separately from its upstream repository. Run commands from this repository's root; generated files belong in the ignored `runs/` and `logs/` directories.
 
 ## 1. Get the data
 
@@ -24,9 +24,18 @@ export BRICKNET_DATA="$PWD/data/bricknet"
 python -m bricknet fetch-meshes
 ```
 
-The fetcher places the dataset under `data/bricknet/dataset/` and additional mesh assets under `data/bricknet/`. BrickNet's public mesh fetch commands are documented in its data guide. Keep the share URL and downloaded files private. The 100-case evaluation prompts, target paths, and derived geometry are not redistributed.
+The fetcher places the dataset under `data/bricknet/dataset/` and additional mesh assets under `data/bricknet/`. BrickNet's public mesh fetch commands are documented in its data guide. Keep the share URL and downloaded files private. The full 100-work evaluation set is not included.
 
-[data/smoke_example.jsonl](data/smoke_example.jsonl) is intentionally empty. Populate it locally with authorized examples before running the example commands. Each line must be a JSON object with `id`, a path-text `prefix`, and a `completion` containing the remaining path text. Concatenating `prefix` and `completion` must produce a valid assembly. Training datasets are produced by the builders in Section 3; they use their own fields and caches. An empty placeholder is not a runnable test dataset.
+[data/smoke_example.jsonl](data/smoke_example.jsonl) contains eight input records from four works in the fixed DFS 100-work evaluation. Each work has an `original` and a `stretched` reference condition. These are the exact records selected for the tiny test set, without model outputs:
+
+| Viewer number (1-based) | Source key | Conditions |
+| --- | --- | --- |
+| 014 | `val:85` | original, stretched |
+| 024 | `val:114` | original, stretched |
+| 048 | `val:252` | original, stretched |
+| 086 | `val:467` | original, stretched |
+
+Each record contains a path-text `prefix`, `target_short`, and `target_long`. Use `target_short` for the original condition and `target_long` for the stretched condition; append the selected target to `prefix` to obtain the reference assembly. Each record's long target also supports paired reference-sensitivity scoring. Part identifiers depend on the prefix, so paired target strings need not be identical. Records follow viewer-number order, original before stretched. This small set exercises the input, generation, and evaluation workflow; its scores are not the full 100-work benchmark scores. Training data are prepared separately with the builders in Section 3.
 
 ## 2. Set up the environment
 
@@ -50,7 +59,7 @@ hf download Qwen/Qwen3-0.6B
 hf download kulits/BrickNet-0.6B-PT
 ```
 
-After fetching the collision meshes and filling the placeholder, run `python scripts/check_example.py`. It checks every supplied example for parsing and collisions. Add `--tokenizer Qwen/Qwen3-0.6B` to check the completion token boundary. An empty file produces an error before model loading. GRPO uses vLLM and its separate environment setup at `scripts/train/grpo/runner/install_vllm_env.sh`.
+After fetching the collision meshes, run `python scripts/check_example.py`. It checks all eight test records for parsing and collisions, using the target for each condition. Add `--tokenizer Qwen/Qwen3-0.6B` to check the completion token boundary. An empty custom input file produces an error before model loading. GRPO uses vLLM and its separate environment setup at `scripts/train/grpo/runner/install_vllm_env.sh`.
 
 ## 3. Prepare data and train
 
@@ -122,7 +131,7 @@ The GRPO launcher uses a separate Conda environment. Install it with `bash scrip
 
 ## 4. Generate and evaluate
 
-`scripts/generate.py` reads one JSON object per line with `id` and `prefix`. For a completion check, add `target` (or `completion`). For paired reference-sensitivity scoring, provide `source_key`, `condition` (`original` or `stretched`), the appropriate `target_short` and `target_long`, and keep `target_long` identical as the scored long target under both contexts. Fill the empty [input placeholder](data/smoke_example.jsonl) with authorized examples before running:
+`scripts/generate.py` reads one JSON object per line with `id` and `prefix`. For a completion check, add `target` (or `completion`). For paired reference-sensitivity scoring, provide `source_key`, `condition` (`original` or `stretched`), and the appropriate `target_short` and `target_long`. Each condition's `target_long` must describe the corresponding long target using identifiers valid for that record's prefix. Run the following on the included [tiny test set](data/smoke_example.jsonl):
 
 ```bash
 python scripts/generate.py --model Qwen/Qwen3-0.6B --adapter PATH_TO_ADAPTER --input data/smoke_example.jsonl --output runs/example_predictions.jsonl --samples 4
@@ -138,4 +147,4 @@ python eval/score_independent.py --predictions runs/independent_outputs.jsonl --
 
 The independent score is the mean valid brick prefix before a parser failure. For the paper's exact 100-case benchmark, authorized inputs are required. `eval/new100/source/build_dataset.py --out runs/new100` constructs a new 100-case set from gated validation graphs, and `eval/new100/source/validate_dataset.py --data runs/new100` checks it. Pass `--legacy-input` with authorized historical pairs only if you need the original source selection. `eval/frontier/source/build_dataset.py` reorders an authorized DFS input file for the alternate traversal. Results from newly sampled cases should be kept separate from the published observations.
 
-Running these commands requires locally prepared data and model weights. The repository provides the workflow; it does not contain precomputed observations for recreating the paper's numerical plots and tables. BrickNet's upstream software licenses and dataset access terms apply to the separately obtained dependency and data.
+The tiny test set supplies inputs for the example generation and evaluation commands; model weights and the required geometry assets must be obtained separately. Full training and benchmark runs require locally prepared datasets. The repository does not contain precomputed observations for recreating the paper's numerical plots and tables. BrickNet's upstream software licenses and dataset access terms apply to its code and data.
