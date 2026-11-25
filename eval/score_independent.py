@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from statistics import mean
 
-from bricknet import score_text
+from brickicl.jsonl import read_jsonl
 
 
 def main():
@@ -12,9 +12,15 @@ def main():
     parser.add_argument("--predictions", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+    try:
+        records = read_jsonl(args.predictions)
+    except (OSError, ValueError) as error:
+        parser.error(str(error))
+    if any(not isinstance(record.get("samples"), list) or not record["samples"] for record in records):
+        parser.error("Each prediction record needs a nonempty samples list")
+    from bricknet import score_text
     rows = []
-    for line in args.predictions.read_text(encoding="utf-8").splitlines():
-        record = json.loads(line)
+    for record in records:
         for sample in record["samples"]:
             text = record["prefix"] + sample
             text = "\n".join(text.rstrip("\n").split("\n")[:199])

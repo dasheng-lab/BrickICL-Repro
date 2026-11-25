@@ -7,17 +7,15 @@ BrickICL explores how small language models assemble LEGO structures from serial
 | Directory | What it contains |
 | --- | --- |
 | `src/brickicl/` | Reusable assembly, data-construction, model, and scoring code |
-| `scripts/` | Data setup, supervised and GRPO training, generation, and result-building commands |
+| `scripts/` | Data setup, supervised and GRPO training, and generation commands |
 | `eval/` | Pose F1, Exact@N, paired reference sensitivity, and valid-prefix scoring |
-| `data/` | An independently written five-brick example; restricted BrickNet data is downloaded here locally |
-| `results/` | Public numeric observations and generated tables and plots |
-| `third_party/bricknet/` | Upstream BrickNet and BrickNet-Render source, including their licenses and data instructions |
+| `data/` | An empty JSONL placeholder; authorized datasets are prepared locally |
 
-Run commands from the repository root. `runs/` and `logs/` are local output directories and are ignored by Git.
+This repository contains the project code for data preparation, training, generation, and evaluation. Dataset contents, model checkpoints, saved predictions, metrics, tables, and plots are not included. BrickNet is installed separately from its upstream repository. Run commands from this repository's root; generated files belong in the ignored `runs/` and `logs/` directories.
 
 ## 1. Get the data
 
-BrickNet's full training and validation data require access from the authors. Apply using the [BrickNet dataset form](https://forms.gle/dm4eYSa5gh4DqzRT6), as described in [BrickNet's data guide](third_party/bricknet/BrickNet/DATA.md). Once access is granted, set `BRICKNET_SHARE_URL` to your authorized Keeper share URL and run:
+BrickNet's full training and validation data require access from the authors. Apply using the [BrickNet dataset form](https://forms.gle/dm4eYSa5gh4DqzRT6), as described in [BrickNet's data guide](https://github.com/kulits/BrickNet/blob/main/DATA.md). After completing the environment setup below and receiving access, set `BRICKNET_SHARE_URL` to your authorized Keeper share URL and run:
 
 ```bash
 export BRICKNET_SHARE_URL='YOUR_AUTHORIZED_SHARE_URL'
@@ -28,22 +26,31 @@ python -m bricknet fetch-meshes
 
 The fetcher places the dataset under `data/bricknet/dataset/` and additional mesh assets under `data/bricknet/`. BrickNet's public mesh fetch commands are documented in its data guide. Keep the share URL and downloaded files private. The 100-case evaluation prompts, target paths, and derived geometry are not redistributed.
 
-The [small test example](data/smoke_example.jsonl) is independent of BrickNet validation data. A [Google Drive copy](https://drive.google.com/file/d/16NDCaDN4kLeSpejVeYvroTZIK34lPJxa/view?usp=drivesdk) is available to Berkeley accounts; the repository copy is public. It checks the input and parser flow but does not produce a reported result.
+[data/smoke_example.jsonl](data/smoke_example.jsonl) is intentionally empty. Populate it locally with authorized examples before running the example commands. Each line must be a JSON object with `id`, a path-text `prefix`, and a `completion` containing the remaining path text. Concatenating `prefix` and `completion` must produce a valid assembly. Training datasets are produced by the builders in Section 3; they use their own fields and caches. An empty placeholder is not a runnable test dataset.
 
 ## 2. Set up the environment
 
-Use Python 3.11 on Linux for training and evaluation. A CUDA GPU is needed for model training and practical model inference. The numeric results in `results/` only need NumPy and Matplotlib.
+Use Python 3.11 on Linux for training and evaluation. A CUDA GPU is needed for model training and practical model inference. Keep the upstream BrickNet checkout outside this repository:
 
 ```bash
 python3.11 -m venv .venv
 source .venv/bin/activate
-python -m pip install -e third_party/bricknet/BrickNet
+git clone https://github.com/kulits/BrickNet.git ../BrickNet
+export BRICKNET_REPO="$(cd ../BrickNet && pwd)"
+python -m pip install -e "$BRICKNET_REPO"
+python -m pip install -r "$BRICKNET_REPO/requirements.txt"
 python -m pip install -e .
 export BRICKNET_DATA="$PWD/data/bricknet"
-python scripts/check_example.py
 ```
 
-The last command checks that the example parses as five connected, collision-free bricks; it needs the collision meshes. Add `--tokenizer Qwen/Qwen3-0.6B` to check the completion loss mask. The reported GRPO run uses vLLM and its own pinned environment setup at `scripts/train/grpo/runner/install_vllm_env.sh`.
+`BRICKNET_REPO` points to the external checkout containing `scripts/train.py`; the paired-order trainer uses this entry point. Keep this variable set in training sessions. Our RMA and Qwen trainers also use locally cached Hugging Face weights. Cache the models before running them:
+
+```bash
+hf download Qwen/Qwen3-0.6B
+hf download kulits/BrickNet-0.6B-PT
+```
+
+After fetching the collision meshes and filling the placeholder, run `python scripts/check_example.py`. It checks every supplied example for parsing and collisions. Add `--tokenizer Qwen/Qwen3-0.6B` to check the completion token boundary. An empty file produces an error before model loading. GRPO uses vLLM and its separate environment setup at `scripts/train/grpo/runner/install_vllm_env.sh`.
 
 ## 3. Prepare data and train
 
@@ -115,7 +122,7 @@ The GRPO launcher uses a separate Conda environment. Install it with `bash scrip
 
 ## 4. Generate and evaluate
 
-`scripts/generate.py` reads one JSON object per line with `id` and `prefix`. For a completion check, add `target` (or `completion`). For paired reference-sensitivity scoring, provide `source_key`, `condition` (`original` or `stretched`), the appropriate `target_short` and `target_long`, and keep `target_long` identical as the scored long target under both contexts. The [public example](data/smoke_example.jsonl) has a prefix and completion; it is suitable for a smoke run.
+`scripts/generate.py` reads one JSON object per line with `id` and `prefix`. For a completion check, add `target` (or `completion`). For paired reference-sensitivity scoring, provide `source_key`, `condition` (`original` or `stretched`), the appropriate `target_short` and `target_long`, and keep `target_long` identical as the scored long target under both contexts. Fill the empty [input placeholder](data/smoke_example.jsonl) with authorized examples before running:
 
 ```bash
 python scripts/generate.py --model Qwen/Qwen3-0.6B --adapter PATH_TO_ADAPTER --input data/smoke_example.jsonl --output runs/example_predictions.jsonl --samples 4
@@ -131,14 +138,4 @@ python eval/score_independent.py --predictions runs/independent_outputs.jsonl --
 
 The independent score is the mean valid brick prefix before a parser failure. For the paper's exact 100-case benchmark, authorized inputs are required. `eval/new100/source/build_dataset.py --out runs/new100` constructs a new 100-case set from gated validation graphs, and `eval/new100/source/validate_dataset.py --data runs/new100` checks it. Pass `--legacy-input` with authorized historical pairs only if you need the original source selection. `eval/frontier/source/build_dataset.py` reorders an authorized DFS input file for the alternate traversal. Results from newly sampled cases should be kept separate from the published observations.
 
-## 5. Rebuild the published numerical results
-
-The repository includes only pseudonymous numeric observations for the 100-case completion benchmark, paired frontier comparison, independent generations, and training curves. They are sufficient to regenerate the project's numerical figures and tables without a checkpoint or the gated dataset:
-
-```bash
-python scripts/results/build_results.py
-```
-
-Outputs appear in `results/tables/` and `results/figures/`. The reported metrics are teacher-forced paired change in log-odds, completion Pose F1, Exact@4, and the valid independent-generation prefix with EOS suppressed. The stopping-behavior appendix also reports collision-free prefix length. Qualitative assembly renders need the restricted input geometry and are not included.
-
-The BrickNet authors retain their own software licenses and dataset access terms.
+Running these commands requires locally prepared data and model weights. The repository provides the workflow; it does not contain precomputed observations for recreating the paper's numerical plots and tables. BrickNet's upstream software licenses and dataset access terms apply to the separately obtained dependency and data.

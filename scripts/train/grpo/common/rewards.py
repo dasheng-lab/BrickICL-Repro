@@ -7,6 +7,7 @@ import importlib.util
 import os
 import sys
 from pathlib import Path
+import bricknet
 
 SRC = Path(os.environ.get("SRC", str(Path(__file__).resolve().parents[4])))
 METRICS_DIR = SRC / "scripts/train/assembly_order/metrics"
@@ -24,9 +25,9 @@ score_completion, pose_f1, parses = _m.score_completion, _m.pose_f1, _m.parses
 EXTERNAL = [
     METRICS_DIR / "metrics.py",
     SRC / "src" / "brickicl" / "eval" / "match.py",
-    SRC / "third_party" / "bricknet" / "BrickNet" / "src" / "bricknet" / "score.py",
-    SRC / "third_party" / "bricknet" / "BrickNet" / "src" / "bricknet" / "collision.py",
-    SRC / "third_party" / "bricknet" / "BrickNet" / "src" / "bricknet" / "tree.py",
+    Path(bricknet.__file__).resolve().parent / "score.py",
+    Path(bricknet.__file__).resolve().parent / "collision.py",
+    Path(bricknet.__file__).resolve().parent / "tree.py",
 ]
 
 

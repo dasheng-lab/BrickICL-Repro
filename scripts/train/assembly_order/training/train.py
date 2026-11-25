@@ -1,6 +1,6 @@
 """Post-train BrickNet-PT on one arm of the paired data, with the official trainer.
 
-This is a thin launcher around `third_party/bricknet/BrickNet/scripts/train.py` in `pt` mode: path +
+This is a thin launcher around `$BRICKNET_REPO/scripts/train.py` in `pt` mode: path +
 EOS, loss on the whole sequence, a fresh LoRA on top of Qwen3 with the official PT adapter merged
 in. The upstream file is not edited. Only the numbers of its PT recipe that assume a 250k-step run
 from scratch are replaced:
@@ -29,13 +29,15 @@ import hashlib
 import importlib.util
 import json
 import math
+import os
 import subprocess
 import sys
 import time
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[4]
-UPSTREAM = REPO / "third_party/bricknet/BrickNet/scripts/train.py"
+BRICKNET_REPO = Path(os.environ.get("BRICKNET_REPO", str(REPO.parent / "BrickNet"))).expanduser().resolve()
+UPSTREAM = BRICKNET_REPO / "scripts/train.py"
 
 
 def sha256(path):
@@ -86,11 +88,16 @@ def main():
                     help="torch.compile as upstream does; fails on torch 2.14.1 with the Liger kernels (speed only)")
     args = ap.parse_args()
 
+    if not UPSTREAM.is_file():
+        ap.error("Install the upstream BrickNet checkout and set BRICKNET_REPO to its root; see README.md")
+
     train_file = Path(args.data) / f"{args.arm}.jsonl"
     dev_file = Path(args.dev) / f"{args.arm}.jsonl"
     output = Path(args.output)
     with open(train_file) as f:
-        n_rows = sum(1 for _ in f)
+        n_rows = sum(bool(line.strip()) for line in f)
+    if not n_rows:
+        ap.error(f"{train_file} is empty; prepare authorized training data before running training")
 
     spec = importlib.util.spec_from_file_location("bricknet_train", UPSTREAM)
     up = importlib.util.module_from_spec(spec)
@@ -143,7 +150,7 @@ def main():
         "dev_file": str(dev_file),
         "dev_sha256": sha256(dev_file),
         "steps": steps,
-        "upstream": str(UPSTREAM.relative_to(REPO)),
+        "upstream": str(UPSTREAM),
         "commit": git_commit(),
         "started": time.strftime("%Y-%m-%d %H:%M:%S %Z"),
     }
