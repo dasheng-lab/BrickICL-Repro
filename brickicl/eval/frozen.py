@@ -1,29 +1,12 @@
-"""Run a frozen BrickNet model on a masked-sampler jsonl (e.g. the pilot set from brickicl.sampling.build).
+"""Shared model-loading and token-scoring helpers for assembly evaluation."""
 
-For every row it records
-  - teacher-forced log-likelihood of the reference completion (and of EOS right after it), and
-  - n sampled completions of exactly |M| parts, each scored order-invariantly against M.
-
-Model loading and sampling follow upstream scripts/generate.py: base model + LoRA adapters merged in
-order, temperature 1.0, top-k 20, top-p 0.95, and upstream's own StopAfterNewlines (EOS is banned
-until 2|M| new lines, then forced).
-
-Usage:
-  python -m brickicl.eval.frozen --model Qwen/Qwen3-0.6B --lora kulits/BrickNet-0.6B-PT \
-      --data pilot.jsonl --out pilot.0.6B.jsonl --n 32
-"""
-
-import argparse
 import importlib.util
-import json
-import time
 from pathlib import Path
 
 import bricknet
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, LogitsProcessorList
 
-from .match import realize, score
 
 
 def upstream_stop_after_newlines():
@@ -128,56 +111,3 @@ def sample(model, tok, rows, n, budget, seed, device, stop_cls=None, k_key="k", 
             done += len(chunk)
             print(f"  sampled k={k}: {done}/{len(idx)} rows", flush=True)
     return texts
-
-
-def main():
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--model", required=True)
-    ap.add_argument("--lora", action="append", default=None)
-    ap.add_argument("--data", required=True)
-    ap.add_argument("--out", required=True)
-    ap.add_argument("--n", type=int, default=32, help="samples per row (0: likelihood only)")
-    ap.add_argument("--token_budget", type=int, default=250_000, help="max sequences x tokens per generate call")
-    ap.add_argument("--score_batch", type=int, default=8, help="rows per teacher-forcing forward")
-    ap.add_argument("--dtype", default="bfloat16")
-    ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--limit", type=int, default=None, help="first N rows only (smoke tests)")
-    args = ap.parse_args()
-
-    device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
-    rows = [json.loads(line) for line in open(args.data)][: args.limit]
-    t0 = time.time()
-    model, tok = load(args.model, args.lora, args.dtype, device)
-    print(f"{len(rows)} rows, model {args.model} + {args.lora} on {device}", flush=True)
-
-    lps, mismatched = target_logprobs(model, tok, rows, args.score_batch, device)
-    print(f"teacher forcing done ({time.time() - t0:.0f}s); prefix/target token-boundary mismatches: {mismatched}")
-    if args.n:
-        texts = sample(model, tok, rows, args.n, args.token_budget, args.seed, device, upstream_stop_after_newlines())
-    else:
-        texts = [[]] * len(rows)
-    print(f"sampling done ({time.time() - t0:.0f}s)", flush=True)
-
-    keep = ("source", "pair", "strategy", "condition", "copies", "k", "n_prefix", "seed", "anchor_lag")
-    with open(args.out, "w") as f:
-        for r, lp, comps in zip(rows, lps, texts):
-            ref = realize(r["prefix"] + r["target"])
-            scores = [score(r["prefix"], r["target"], c, r["n_prefix"], ref=ref) for c in comps]
-            m = len(scores) or 1
-            row = {key: r[key] for key in keep if key in r} | lp | {
-                "n": len(scores),
-                "parse_ok": sum(s.parse_error is None for s in scores) / m,
-                "part_acc": sum(s.part_hits for s in scores) / (m * r["k"]),
-                "place_acc": sum(s.placed for s in scores) / (m * r["k"]),
-                "first_ok": sum(s.first_ok for s in scores) / m,
-                "exact": sum(s.exact for s in scores) / m,
-                "samples": [{"text": c} | s.asdict() for c, s in zip(comps, scores)],
-                "model": args.model,
-                "lora": args.lora,
-            }
-            f.write(json.dumps(row) + "\n")
-    print(f"wrote {args.out} ({time.time() - t0:.0f}s)")
-
-
-if __name__ == "__main__":
-    main()

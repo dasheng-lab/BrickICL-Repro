@@ -1,11 +1,15 @@
-import hashlib,json,sys
+import argparse,hashlib,json,sys
 from pathlib import Path
 from collections import Counter
 import numpy as np
 from bricknet import parse_sample,decode_graph,tree_to_graph,score_text
-ROOT=Path(__file__).resolve().parent;REPO=ROOT.parents[1];sys.path.insert(0,str(REPO/'runs/dfs_posttrain_20261114'))
+ROOT=Path(__file__).resolve().parent;REPO=ROOT.parents[2];sys.path.insert(0,str(REPO/'training/augmentation/dfs_posttrain_20261114'))
 from prepare_corpus import check_dfs
 def main():
+ global ROOT
+ parser=argparse.ArgumentParser(description=__doc__)
+ parser.add_argument('--data',type=Path,default=REPO/'runs/new100')
+ ROOT=parser.parse_args().data.resolve()
  sources=json.loads((ROOT/'sources.json').read_text());assert len(sources)==100 and len({s['source'] for s in sources})==100
  counts=Counter();geometry=set();rows=[]
  for s in sources:

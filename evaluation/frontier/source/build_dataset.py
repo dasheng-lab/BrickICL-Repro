@@ -1,4 +1,5 @@
 """Reserialize the same 100 strict-DFS test assemblies with masked frontier sampling."""
+import argparse
 import hashlib
 import json
 from pathlib import Path
@@ -7,10 +8,14 @@ from bricknet import parse_sample, score_text, tree_to_graph
 from brickicl.eval.length_probe import shared_head
 from brickicl.sampling.masked_walk import masked_walk
 
-ORIGINAL = Path('/home/sunshq114514/brickICL/runs/eval100_official_dfs_20261122')
-OUTPUT = Path('/home/shensx3017/brickicl_eval/frontier_testset')
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--input", type=Path, required=True, help="Paired strict-DFS JSONL from the authorized benchmark")
+parser.add_argument("--output", type=Path, required=True, help="Output directory for frontier-order inputs")
+args = parser.parse_args()
+ORIGINAL = args.input.resolve()
+OUTPUT = args.output.resolve()
 OUTPUT.mkdir(parents=True, exist_ok=True)
-rows = [json.loads(line) for line in (ORIGINAL/'p1_inputs.jsonl').open()]
+rows = [json.loads(line) for line in ORIGINAL.open()]
 assert len(rows) == 200
 new_rows = []
 for index, old in enumerate(rows):

@@ -1,5 +1,5 @@
 """Official-validation-derived repeated-subassembly benchmark with training-identical DFS."""
-import hashlib,importlib.util,json,lzma,os,sys,time
+import argparse,hashlib,importlib.util,json,lzma,os,sys,time
 from collections import Counter,defaultdict
 from pathlib import Path
 import numpy as np
@@ -11,7 +11,7 @@ from brickicl.sampling.missing import pendant_copies
 from brickicl.sampling.edits import stack_joint,stretch,decorate,free_connectors
 from brickicl.sampling.masked_walk import split_text
 from brickicl.eval.length_probe import shared_head
-ROOT=Path(__file__).resolve().parent;REPO=ROOT.parents[1];TRAIN=REPO/'runs/dfs_posttrain_20261114';sys.path.insert(0,str(TRAIN))
+ROOT=Path(__file__).resolve().parent;REPO=ROOT.parents[2];TRAIN=REPO/'training/augmentation/dfs_posttrain_20261114';sys.path.insert(0,str(TRAIN))
 from dfs_sampling import masked_walk as training_walk
 from prepare_corpus import dfs as training_dfs,check_dfs
 CAT=load_catalog()
@@ -170,7 +170,13 @@ def process_source(sid,g,counts,seen_signatures):
   counts['error_'+type(e).__name__]+=1
  return None
 def main():
- start=time.time();graphs=read_graphs(REPO/'baseline/bricknet/data/dataset/val.npz.xz');caps={int(r['id']):r['caption'] for r in map(json.loads,lzma.open(REPO/'baseline/bricknet/data/dataset/captions_val.jsonl.xz','rt'))};old=[json.loads(s) for s in (REPO/'runs/viewer_parse_fox_fix_20261121/p1_inputs.jsonl').open()];oldids=list(dict.fromkeys(int(r['source_key'].split(':')[1]) for r in old));records=[];counts=Counter();signatures=Counter();buckets=Counter()
+ global ROOT
+ parser=argparse.ArgumentParser(description=__doc__)
+ parser.add_argument('--out',type=Path,default=REPO/'runs/new100')
+ parser.add_argument('--legacy-input',type=Path,help='Optional historical paired inputs, if authorized')
+ args=parser.parse_args()
+ ROOT=args.out.resolve();ROOT.mkdir(parents=True,exist_ok=True)
+ start=time.time();graphs=read_graphs(REPO/'baseline/bricknet/data/dataset/val.npz.xz');caps={int(r['id']):r['caption'] for r in map(json.loads,lzma.open(REPO/'baseline/bricknet/data/dataset/captions_val.jsonl.xz','rt'))};old=[json.loads(s) for s in args.legacy_input.open()] if args.legacy_input else [];oldids=list(dict.fromkeys(int(r['source_key'].split(':')[1]) for r in old));records=[];counts=Counter();signatures=Counter();buckets=Counter()
  for sid in oldids:
   r=legacy(sid,old);r.update(caption=caps[sid],category=classify(caps[sid]),label=f'#{sid} · '+('狐狸' if sid==114 else caps[sid].split('.')[0][:70]));records.append(r);buckets[r['category']]+=1
  candidates=[i for i in range(len(graphs)) if i not in oldids];candidates.sort(key=lambda i:sha(f'official-dfs:{i}'))
