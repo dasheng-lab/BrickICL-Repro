@@ -1,38 +1,18 @@
-# OS / editor / local tooling
 .DS_Store
-.claude/
 __pycache__/
 *.pyc
+.venv/
 .ipynb_checkpoints/
-
-# BrickNet data (17 GB: meshes, LDraw library, gated dataset). Never commit; see its README for how to fetch.
-baseline/bricknet/data/*
-!baseline/bricknet/data/README.md
-
-# Regenerable viewer artifacts. models/ embeds LDraw parts and includes gated-dataset models and captions.
-baseline/repro/viewer/models/
-baseline/repro/viewer/colors.ldr
-
-# Derived from the gated dataset (view_dataset.sh); do not redistribute
-baseline/repro/gt/
-
-# Local scratch: try.sh runs and long-job logs
-baseline/repro/try/
-baseline/repro/logs
-
-# Upstream repos are vendored as plain files. Their own git dirs are renamed to .git-upstream (a nested .git
-# would make git store only a pointer) and kept local only, for pulling upstream updates.
+/runs/
+/logs/
+/training/supervised_training/**/training/
+/training/supervised_training/**/cache/
+/training/supervised_training/**/*.lock
+/training/supervised_training/*/*READY.json
+/training/supervised_training/*/BASE_PROVENANCE.json
+/training/supervised_training/*/COMPARISON.json
+/training/supervised_training/*/EXPERIMENT.json
+/training/supervised_training/*/schedule.jsonl
+/training/supervised_training/*/dev_selection.json
+baseline/bricknet/data/
 baseline/bricknet/*/.git-upstream/
-
-# experiment outputs and logs (kept on the servers, not in git)
-/runs
-/logs
-
-# Untracked compatibility links used by the byte-identical historical GRPO source.
-/nzd-supertry/
-
-# Generated dashboards and server-local presentation data
-/baseline/repro/viewer/unified_compare.json
-/baseline/repro/viewer/fox_compare.json
-/baseline/repro/viewer/fox_compare_primed.json
-/brickicl/playground/results_summary.md

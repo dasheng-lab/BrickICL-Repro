@@ -1,56 +1,146 @@
-# BrickICL: in-context learning in LEGO assembly
+# BrickICL
 
-CS182 project by Sixian Shen, Zidong Ning, Shengqing Sun, and Junyang Wu.
+BrickICL explores how small language models assemble LEGO structures from serialized parts and connections. Given a partly built object with one visible repeated module, the model completes a missing copy. We also ask whether improving this reference-guided task changes its ability to build an object without a reference. The project compares two starting models (released BrickNet-0.6B PT and Qwen3-0.6B), repeated-module and assembly-order data augmentation, M-only and Full-G supervision, regularization, and GRPO. It was developed by Sixian Shen, Zidong Ning, Shengqing Sun, and Junyang Wu for CS182.
 
-We study whether a 0.6B assembly model can use a visible repeated subassembly to complete another copy, and how that ability relates to independent LEGO generation. The final report compares repeated-module augmentation (RMA), substructure-last augmentation (SLA), missing-module supervision (M-only), full-assembly supervision (Full-G), regularization, and GRPO. The main completion evaluation uses 100 paired sources from BrickNet's gated validation split.
+## Start here
 
-## Reproduce the report's quantitative results
-
-From the repository root:
-
-```bash
-python -m pip install -r reproduction/requirements.txt
-python reproduction/scripts/reproduce.py
-```
-
-This regenerates the numeric tables in `reproduction/tables/`, plots in `reproduction/figures/`, and supporting summaries in `reproduction/generated/`. It needs Python 3.11 and the listed packages, but no GPU, model checkpoint, network request, or BrickNet download. The checked-in `reproduction/data/` contains pseudonymous per-case numeric observations and training curves. It contains no validation graphs, captions, assembly paths, generated assembly text, LDraw scenes, or rendered geometry. Bootstrap intervals over the completion benchmark resample whole source cases; they do not estimate variation across training seeds.
-
-The manuscript's three Results tables are `reproduction/tables/manuscript_objective.tex`, `manuscript_frontier.tex`, and `manuscript_tradeoff.tex`. The ICL–IWL scatter is `reproduction/figures/icl_iwl_scatter.pdf`. The historical 18-source suite in `reproduction/data/completion_18.json` is kept separate from the current 100-source benchmark.
-
-## Paper-to-code guide
-
-| Final report section | Implementation and reproducible output |
+| Directory | What it contains |
 | --- | --- |
-| Methods — RMA data curation | `brickicl/posttrain/build_dataset.py`, `build_v2.py`, `build_v3.py`; construction and training snapshots in `experiments/augmentation/` |
-| Methods — SLA data curation and DFS/LATE comparison | `brickicl/posttrain/reference_last.py` and `materialize_reference_last.py`; paired assembly-order pipeline in `experiments/assembly_order/`; Qwen paired-order training in `experiments/supervised_training/qwen3_paired_order_20261120/` |
-| Methods — M-only and Full-G objectives | `brickicl/posttrain/data.py`, `train_bricknet06.py`, `train_fullg06.py`; Qwen initialization and regularization runs in `experiments/supervised_training/` |
-| Methods — GRPO | `experiments/grpo/step9_grpo/grpo.py` and `experiments/grpo/common/rewards.py`; evaluation source in `evaluation/snapshots/grpo_v21_eval_20261122/` |
-| Results — completion and objective comparison | `evaluation/new100/source/` for benchmark construction and scoring; `reproduction/data/completion_100.json` and `data/proposal_dlo_100/` for anonymized scores; `reproduction/tables/manuscript_objective.tex` |
-| Results — DFS versus Frontier ordering | `evaluation/frontier/source/`; `reproduction/data/frontier_100.json` and `tables/manuscript_frontier.tex` |
-| Results — ICL–IWL trade-off | `reproduction/data/completion_100.json`, `data/physical.json`, `tables/manuscript_tradeoff.tex`, and `figures/icl_iwl_scatter.pdf` |
-| Results — regularization, GRPO, and stopping | `reproduction/data/training.json`, `data/grpo_training.json`, `figures/regularization_curves.pdf`, `figures/rl_curves.pdf`, `figures/eos_effect.pdf`, and `tables/stopping.tex` |
-| Appendix — uncertainty and additional suites | `reproduction/tables/confidence_intervals.tex`, `all_suites.tex`, and `sft.tex` |
+| `data/` | BrickNet data fetcher and an independently written five-brick test example |
+| `brickicl/` | Shared data construction, model, and assembly utilities |
+| `training/` | Repeated-module data creation, paired assembly-order training, Qwen controls, and GRPO |
+| `inference/` | A model-and-adapter command for completion or independent generation |
+| `evaluation/` | Pose F1, Exact@N, paired reference sensitivity, and valid-prefix scoring |
+| `results/` | Public numeric observations, a result-building script, and generated tables and plots |
+| `baseline/bricknet/` | Upstream BrickNet and BrickNet-Render source, including their licenses and data instructions |
 
-`brickicl/` is the importable project package. `experiments/` groups data construction and training by the paper's interventions; `evaluation/` contains benchmark and scoring implementations; `reproduction/` contains the public numeric evidence and reporting scripts; `analysis/snapshots/` preserves report assembly sources; and `baseline/bricknet/BrickNet/` is the pinned upstream BrickNet source copy. Timestamped run directories under `experiments/`, `evaluation/snapshots/`, and `analysis/snapshots/` are source-only historical snapshots. Their original launch scripts record cluster-specific paths and require adaptation, authorized data, weights, and a compatible environment before a fresh model run.
+Run commands from the repository root. `runs/` and `logs/` are local output directories and are ignored by Git.
 
-The main Proposal DLO implementation is `evaluation/proposal_dlo/source/`. Its public pseudonymous scores are in `reproduction/data/proposal_dlo_100/`. The report's qualitative panels and method diagram need original renders or derived geometry; `reproduction/scripts/compose_figures.py` preserves the composition code, but those inputs are not redistributed.
+## 1. Get the data
 
-## BrickNet data and a small public test
-
-BrickNet's full training and validation datasets are not public downloads. Request access through the [form given by the BrickNet authors](https://forms.gle/dm4eYSa5gh4DqzRT6), also linked in [BrickNet's data instructions](baseline/bricknet/BrickNet/DATA.md). After access is granted, set `BRICKNET_SHARE_URL` locally and run `baseline/repro/fetch_data.sh`. Do not commit the share URL, downloaded dataset, or validation-derived geometry. The original 100-case benchmark prompts and targets are omitted because permission to redistribute the gated inputs or their derived geometry has not been established.
-
-The independent [toy test fixture](reproduction/data/smoke_example.jsonl) is also stored in [Google Drive](https://drive.google.com/file/d/16NDCaDN4kLeSpejVeYvroTZIK34lPJxa/view?usp=drivesdk). The Drive copy is readable within the UC Berkeley domain; the repository copy is public to everyone. This example was authored separately from BrickNet validation data and is not used in any reported score. With BrickNet and its public collision meshes installed, run:
+BrickNet's full training and validation data require access from the authors. Apply using the [BrickNet dataset form](https://forms.gle/dm4eYSa5gh4DqzRT6), as described in [BrickNet's data guide](baseline/bricknet/BrickNet/DATA.md). Once access is granted, set `BRICKNET_SHARE_URL` to your authorized Keeper share URL and run:
 
 ```bash
-python reproduction/scripts/smoke_example.py
+export BRICKNET_SHARE_URL='YOUR_AUTHORIZED_SHARE_URL'
+bash data/fetch_bricknet.sh --meshes
+export BRICKNET_DATA="$PWD/baseline/bricknet/data"
+python -m bricknet fetch-meshes
 ```
 
-This checks parsing, connectivity, and collision scoring. Add `--tokenizer MODEL_OR_PATH` to check the completion loss mask. The fixture tests the code path; the numeric report reproduction above uses the public de-identified observations.
+The fetcher places the dataset under `baseline/bricknet/data/dataset/` and additional mesh assets under `baseline/bricknet/data/`. BrickNet's public mesh fetch commands are documented in its data guide. Keep the share URL and downloaded files private. The 100-case evaluation prompts, target paths, and derived geometry are not redistributed.
 
-## Training provenance and scope
+The [small test example](data/smoke_example.jsonl) is independent of BrickNet validation data. A [Google Drive copy](https://drive.google.com/file/d/16NDCaDN4kLeSpejVeYvroTZIK34lPJxa/view?usp=drivesdk) is available to Berkeley accounts; the repository copy is public. It checks the input and parser flow but does not produce a reported result.
 
-The reported B-RL run is GRPO v2.1. SHA-256 of `experiments/grpo/step9_grpo/grpo.py` is `23e4388efe0b9f7bb3f057793166176524e14cb0f09a8202fd176c63e0363efc`; SHA-256 of `experiments/grpo/common/rewards.py` is `d70d0f73999f45ffc42ccecd2287ecaa29484ef6240ced19af643ff9ae616760`. These match the recorded training sources. The preserved GRPO code refers to historical assembly-order paths; `experiments/grpo/prepare_layout.py` creates ignored compatibility links when `experiments/grpo/step9_grpo/run_grpo.sh` starts, leaving those hash-verified files unchanged. Earlier numbered RL plans are absent because they were not implemented as reported experiments.
+## 2. Set up the environment
 
-The cluster audit recovered source-only snapshots for RMA/DFS preparation, the New100 and Frontier evaluations, Proposal DLO scoring, Qwen controls and regularization, GRPO evaluation, no-EOS generation, and report analysis. The repository does not include run plans, original prompts or outputs, checkpoints, or restricted data. The public observations support reproducing the paper's numerical plots and tables. Rerunning inference or training needs authorized inputs and model weights. The report does not claim multi-seed training or physical-stability evaluation.
+Use Python 3.11 on Linux for training and evaluation. A CUDA GPU is needed for model training and practical model inference. The numeric results in `results/` only need NumPy and Matplotlib.
 
-The original BrickNet authors retain their own licensing and data-access terms.
+```bash
+python3.11 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e baseline/bricknet/BrickNet
+python -m pip install -r requirements.txt
+export PYTHONPATH="$PWD"
+export BRICKNET_DATA="$PWD/baseline/bricknet/data"
+python data/check_example.py
+```
+
+The last command checks that the example parses as five connected, collision-free bricks; it needs the collision meshes. Add `--tokenizer Qwen/Qwen3-0.6B` to check the completion loss mask. The reported GRPO run uses vLLM and its own pinned environment setup at `training/grpo/runner/install_vllm_env.sh`.
+
+## 3. Prepare data and train
+
+### Repeated-module augmentation and supervised objectives
+
+`brickicl/posttrain/build_v2.py` builds larger repeated modules; `build_v3.py` builds small repeated modules inside more complex bodies. They consume the authorized BrickNet graph files and write training and development JSONL under `runs/`. Before training, create the token caches and fixed schedules:
+
+```bash
+python -m brickicl.posttrain.build_v2 --out runs/posttrain_icl_v2
+python -m brickicl.posttrain.build_v3 --out runs/posttrain_icl_v3_local --pt-cache runs/posttrain_icl_v3_local/pt.cache.npz
+python -m brickicl.posttrain.materialize_reference_last --out runs/reference_last_06
+python -m brickicl.posttrain.submit_06_plan --data runs/reference_last_06 --out runs/bricknet_06_reference_last
+python -m brickicl.posttrain.train_bricknet06 --config runs/bricknet_06_reference_last/PT.json
+```
+
+The last command trains an M-only LoRA adapter on the released BrickNet PT starting point. For Full-G, use the same prepared structures with a full-sequence objective:
+
+```bash
+python -m brickicl.posttrain.prepare_fullg --data runs/reference_last_06 --out runs/fullg_06
+python -m brickicl.posttrain.submit_fullg_plan --data runs/fullg_06 --out runs/bricknet_06_fullg
+python -m brickicl.posttrain.train_fullg06 --config runs/bricknet_06_fullg/PT.json
+```
+
+The `training/supervised_training/` directories contain the Qwen initialization, paired-order, and regularization trainers. The direct-Qwen M-only and Full-G configs are prepared from the RMA token caches under `runs/structural_20261114/`:
+
+```bash
+python training/supervised_training/qwen3_direct_pt_20261117/prepare_base.py
+python training/supervised_training/qwen3_direct_pt_20261117/prepare.py
+python training/supervised_training/qwen3_direct_pt_20261117/train.py --config training/supervised_training/qwen3_direct_pt_20261117/training/M_only/config.json
+python training/supervised_training/qwen3_direct_pt_20261117/train.py --config training/supervised_training/qwen3_direct_pt_20261117/training/Full_G/config.json
+```
+
+The RMA cache recipe is in `training/augmentation/`: the DFS preparation scripts build candidate paths, and the structural scripts make the edited examples and token caches. This path needs a locally screened `runs/structural_20261114/screened_bases.json` mapping authorized SFT source IDs to checked captions; that curation file and the original run outputs cannot be distributed with the restricted dataset. Once the direct Full-G run is prepared, the two regularization variants use its config as a template:
+
+```bash
+python training/supervised_training/qwen3_fullg_reg_20261119/prepare.py
+python training/supervised_training/qwen3_fullg_reg_20261119/train.py --config training/supervised_training/qwen3_fullg_reg_20261119/training/Full_G_reg/config.json
+python training/supervised_training/qwen3_fullg_reg_wd010_do015_20261121/prepare.py
+python training/supervised_training/qwen3_fullg_reg_wd010_do015_20261121/train.py --config training/supervised_training/qwen3_fullg_reg_wd010_do015_20261121/training/Full_G_reg/config.json
+```
+
+Review generated data, model, and output paths before starting a GPU job.
+
+### Assembly-order augmentation
+
+The paired-order builder produces two views of each sampled tree: strict depth-first (`plain.jsonl`) and a sequence with one subtree moved to the end (`masked.jsonl`). The training and development pools must use disjoint source models.
+
+```bash
+python training/assembly_order/data_construction/build_data.py --split sft --seed 0 --models 10000 --offset 0 --out runs/assembly_order/sft_train_v2
+python training/assembly_order/data_construction/build_data.py --split sft --seed 0 --models 300 --offset 10000 --out runs/assembly_order/sft_dev_v2
+python training/assembly_order/data_construction/verify_data.py runs/assembly_order/sft_train_v2 runs/assembly_order/sft_dev_v2
+python training/assembly_order/training/train.py --arm plain --output runs/assembly_order/train_v2/plain
+python training/assembly_order/training/train.py --arm masked --output runs/assembly_order/train_v2/masked
+```
+
+The Qwen paired-order control uses those same pools. After the two BrickNet runs above have written their run configs, `training/supervised_training/qwen3_paired_order_20261120/build_data.py` prepares Qwen token caches and configs. Run its `train.py` with `training/plain/config.json` and `training/masked/config.json` under that directory.
+
+### GRPO
+
+`training/grpo/runner/run_grpo.sh` starts the GRPO variant from a supervised checkpoint. It needs the authorized paired-order pool, model weights, CUDA, and the vLLM environment. Create a development completion set from a disjoint validation pool, set `START` to the BrickNet PT adapter followed by your supervised adapter, and run:
+
+```bash
+python training/assembly_order/data_construction/build_data.py --split val --models 100 --out runs/assembly_order/val_pool_v2
+python training/assembly_order/completion_evaluation/make_test.py runs/assembly_order/val_pool_v2 --out runs/grpo_dev/test.jsonl
+START="kulits/BrickNet-0.6B-PT PATH_TO_SUPERVISED_ADAPTER" POOL=runs/assembly_order/sft_train_v2 DEV=runs/grpo_dev/test.jsonl bash training/grpo/runner/run_grpo.sh
+```
+
+The GRPO launcher uses a separate Conda environment. Install it with `bash training/grpo/runner/install_vllm_env.sh` after making `conda` available on `PATH`. It also uses a `bricknet` Conda environment for the CPU checkpoint merge; install the packages from Section 2 in that environment. Training configurations and checkpoints are not part of this repository.
+
+## 4. Generate and evaluate
+
+`inference/generate.py` reads one JSON object per line with `id` and `prefix`. For a completion check, add `target` (or `completion`). For paired reference-sensitivity scoring, provide `source_key`, `condition` (`original` or `stretched`), the appropriate `target_short` and `target_long`, and keep `target_long` identical as the scored long target under both contexts. The [public example](data/smoke_example.jsonl) has a prefix and completion; it is suitable for a smoke run.
+
+```bash
+python inference/generate.py --model Qwen/Qwen3-0.6B --adapter PATH_TO_ADAPTER --input data/smoke_example.jsonl --output runs/example_predictions.jsonl --samples 4
+python evaluation/score.py --predictions runs/example_predictions.jsonl --output runs/example_scores.json
+```
+
+Omit `--adapter` for a raw base model; repeat it in merge order for a stack of adapters. The scorer reports part-and-pose F1 and Exact@N over the generated samples. On paired inputs, inference also scores the complete long target with teacher forcing, including EOS; evaluation reports the stretched-minus-original mean change in log-odds. To measure independent generation, create an input JSONL with `{"id":"independent_01","prefix":"a"}` and run:
+
+```bash
+python inference/generate.py --model Qwen/Qwen3-0.6B --adapter PATH_TO_ADAPTER --input runs/independent_inputs.jsonl --output runs/independent_outputs.jsonl --samples 64 --max-new-tokens 6400 --no-eos
+python evaluation/score_independent.py --predictions runs/independent_outputs.jsonl --output runs/independent_scores.json
+```
+
+The independent score is the mean valid brick prefix before a parser failure. For the paper's exact 100-case benchmark, authorized inputs are required. `evaluation/new100/source/build_dataset.py --out runs/new100` constructs a new 100-case set from gated validation graphs, and `evaluation/new100/source/validate_dataset.py --data runs/new100` checks it. Pass `--legacy-input` with authorized historical pairs only if you need the original source selection. `evaluation/frontier/source/build_dataset.py` reorders an authorized DFS input file for the alternate traversal. Results from newly sampled cases should be kept separate from the published observations.
+
+## 5. Rebuild the published numerical results
+
+The repository includes only pseudonymous numeric observations for the 100-case completion benchmark, paired frontier comparison, independent generations, and training curves. They are sufficient to regenerate the project's numerical figures and tables without a checkpoint or the gated dataset:
+
+```bash
+python results/scripts/build_results.py
+```
+
+Outputs appear in `results/tables/` and `results/figures/`. The reported metrics are teacher-forced paired change in log-odds, completion Pose F1, Exact@4, and the valid independent-generation prefix with EOS suppressed. The stopping-behavior appendix also reports collision-free prefix length. Qualitative assembly renders need the restricted input geometry and are not included.
+
+The BrickNet authors retain their own software licenses and dataset access terms.
